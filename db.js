@@ -1,9 +1,7 @@
 const parameters = require('./parameters')
 var sqlite3 = require('sqlite3').verbose();
 
-var list = []
-
-exports.test = function testDb() {
+exports.test = function () {
   var db = new sqlite3.Database(parameters.Parameters.db);
  
   db.serialize(function() {
@@ -23,67 +21,51 @@ exports.test = function testDb() {
   db.close();
 }
 
-exports.create = function createDb() {
+exports.create = function () {
   var db = new sqlite3.Database(parameters.Parameters.db);
- 
   db.serialize(function() {
-    db.run("CREATE TABLE fromcenter (id STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
-    db.run("CREATE TABLE forcenter (id STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
+    run(db, "CREATE TABLE fromcenter (id STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
+    run(db, "CREATE TABLE forcenter (id STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
   });
-   
   db.close();
 }
 
-exports.addForCenter = function addForCenterDB(guid, js) {
+exports.addForCenter = function (guid, js) {
   var db = new sqlite3.Database(parameters.Parameters.db);
- 
   db.serialize(function() {
-    console.log(guid)
-    console.log(js)
     db.run("REPLACE INTO forcenter(id, value) VALUES(?,?)", guid, JSON.stringify(js));
-    //stmt.run(guid, js);
-    //stmt.finalize();
   });
    
   db.close();
 }
 
-exports.forCenter = function forCenterDb(fun) {
-  var db = new sqlite3.Database(parameters.Parameters.db);
-  db.serialize(function() {
-    list.length = 0
-    db.each("SELECT id AS guid FROM forcenter", function(err, row) {
-        list.push(row.guid);
-        console.log("="+row.guid)
-        console.log("=>"+list)
-        fun(list)
-      });
-  });
-  db.close()
-}
-
-exports.delForCenter = function delForCenterDB(guid) {
-  var db = new sqlite3.Database(parameters.Parameters.db);
- 
-  db.serialize(function() {
-    var stmt = db.prepare("DELETE FROM forcenter WHERE id=?");
-    stmt.run(guid);
-    stmt.finalize();
-  });
-   
-  db.close();
-}
-
-exports.select = function (cb) {
+exports.forCenter = function (fun) {
   var list = [];
   var db = new sqlite3.Database(parameters.Parameters.db);           
-  db.all("SELECT id FROM forcenter", function(err,rows){
-    //if(err) return cb(err);
-    let contador = 0; 
+  db.all("SELECT id FROM forcenter", function(err,rows) {
+    if(err) return fun(err);
     rows.forEach(function (row) { 
       list.push(row.id)
     }); 
     db.close();
-    return cb(list);
-}); 
+    return fun(false,list);
+  }); 
+}
+
+exports.delForCenter = function (guid) {
+  var db = new sqlite3.Database(parameters.Parameters.db);
+  db.serialize(function() {
+    var stmt = db.prepare("DELETE FROM forcenter WHERE id=?");
+    stmt.run(guid);
+    stmt.finalize();
+  });   
+  db.close();
+}
+
+run = function(db, req_txt) {
+  db.run(req_txt, function(err) {
+    if (err) {
+      return console.error(err.message);
+    }
+  });
 }

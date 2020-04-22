@@ -1,3 +1,3 @@
 exports.Parameters = {
-  db: "./db/test"
+  db: "./db/compo.db"
 }
