@@ -1,5 +1,7 @@
+const fs = require('fs')
 const parameters = require('./parameters')
 var sqlite3 = require('sqlite3').verbose();
+var logger = require('./logger')
 
 exports.test = function () {
   var db = new sqlite3.Database(parameters.Parameters.db);
@@ -21,51 +23,82 @@ exports.test = function () {
   db.close();
 }
 
-exports.create = function () {
+exports.forCenter = "forcenter"
+exports.forSlave = "forslave"
+
+//проверяет наличие файла БД, если ошибка отстутствия файла, то создадим новую БД с таблицами
+exports.init = function () {
+  fs.readFile(parameters.Parameters.db, err => {
+    if(err) {
+      logger.log(err)
+      if(err.code === 'ENOENT') {
+        var db = new sqlite3.Database(parameters.Parameters.db);
+        db.serialize(function() {
+          db.run("CREATE TABLE forslave (guid STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
+          db.run("CREATE TABLE forcenter (guid STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
+        });
+        db.close();
+        logger.log("Создали новую БД")
+      }
+    }
+  })
+}
+
+//добавляет в таблицу table БД документ с guid и содержанием js
+exports.addDocument = function (table, guid, js) {
   var db = new sqlite3.Database(parameters.Parameters.db);
   db.serialize(function() {
-    run(db, "CREATE TABLE fromcenter (id STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
-    run(db, "CREATE TABLE forcenter (id STRING(36) PRIMARY KEY NOT NULL, value TEXT)");
+    cmd = "REPLACE INTO "+table+" (guid, value) VALUES(?,?)"
+    db.run(cmd, guid, JSON.stringify(js), iferr);
   });
   db.close();
 }
 
-exports.addForCenter = function (guid, js) {
-  var db = new sqlite3.Database(parameters.Parameters.db);
-  db.serialize(function() {
-    db.run("REPLACE INTO forcenter(id, value) VALUES(?,?)", guid, JSON.stringify(js));
-  });
-   
-  db.close();
-}
-
-exports.forCenter = function (fun) {
+//возвращает список guid из таблицы table
+exports.guids = function (table, fun) {
   var list = [];
-  var db = new sqlite3.Database(parameters.Parameters.db);           
-  db.all("SELECT id FROM forcenter", function(err,rows) {
+  var db = new sqlite3.Database(parameters.Parameters.db);
+  cmd = "SELECT guid FROM " + table
+  logger.log(cmd)
+  db.all(cmd, function(err,rows) {
     if(err) return fun(err);
     rows.forEach(function (row) { 
-      list.push(row.id)
+      list.push(row.guid)
     }); 
     db.close();
     return fun(false,list);
   }); 
 }
 
-exports.delForCenter = function (guid) {
+//возвращает содержимое документа с guid из таблицы table
+exports.document = function (table, guid, fun) {
+  var list = [];
+  var db = new sqlite3.Database(parameters.Parameters.db);
+  cmd = "SELECT value FROM " + table + " WHERE guid=?"
+  obj = {}
+  db.all(cmd, guid, function(err,rows) {
+    if(err) return fun(err);
+    rows.forEach(function (row) { 
+      obj = JSON.parse(row.value)
+      //list.push(obj)
+    }); 
+    db.close();
+    return fun(false, obj);
+  }); 
+}
+
+//удаляет документ с guid в таблице table
+exports.delByGuid = function (table, guid) {
   var db = new sqlite3.Database(parameters.Parameters.db);
   db.serialize(function() {
-    var stmt = db.prepare("DELETE FROM forcenter WHERE id=?");
-    stmt.run(guid);
-    stmt.finalize();
+    cmd = "DELETE FROM "+table+" WHERE guid=?"
+    db.run(cmd, guid, iferr)
   });   
   db.close();
 }
 
-run = function(db, req_txt) {
-  db.run(req_txt, function(err) {
-    if (err) {
-      return console.error(err.message);
-    }
-  });
+iferr = function(err) {
+  if (err) {
+    return logger.log(err.message);
+  }
 }
